@@ -366,6 +366,6 @@ FROM emp;
 -- 총 사원수 조회
 -- 각 부서별 사원 수 조회
 
-SELECT COUNT(*)
+SELECT deptno, COUNT(*)
 FROM emp
 GROUP BY deptno;
