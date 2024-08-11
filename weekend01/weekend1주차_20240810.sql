@@ -56,8 +56,29 @@ SELECT EXTRACT(year from TRUNC(sales_date, 'MM')) YEAR
 FROM user_info ui , online_sale os
 WHERE ui.user_id = os.user_id AND gender IS NOT NULL
 GROUP BY TRUNC(sales_date, 'MM'), GENDER
-ORDER BY TRUNC(sales_date, 'MM'), GENDER
-;
+ORDER BY TRUNC(sales_date, 'MM'), GENDER;
+
+--입양 시각 구하기(2)
+SELECT temp.HOUR, NVL(a.COUNT, 0) COUNT
+FROM
+(SELECT LEVEL - 1 HOUR , 0 COUNT FROM dual CONNECT BY LEVEL <= 24) temp
+JOIN
+(SELECT TO_CHAR(datetime, 'HH24') HOUR, COUNT(*) COUNT
+FROM animal_outs
+GROUP BY TO_CHAR(datetime, 'HH24')) a
+ON temp.HOUR= a.HOUR(+)
+ORDER BY temp.HOUR;
+
+--식품분류별 가장 비싼 식품의 정보 조회하기
+SELECT a.category, a.price MAX_PRICE, a.product_name
+FROM(
+SELECT category, price, product_name
+    , RANK()OVER(PARTITION BY category ORDER BY PRICE DESC) RANK
+FROM food_product
+WHERE category IN ('과자', '국', '김치', '식용유')
+) a
+WHERE a.RANK = 1
+ORDER BY MAX_PRICE DESC;
 
 -- String, Date
 -- 자동차 대여 기록 별 대여 금액 구하기
