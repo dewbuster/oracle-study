@@ -182,7 +182,7 @@ delete from o_address;
 INSERT INTO O_CART VALUES(1, 1005);
 INSERT INTO O_CARTLIST (CLIST_ID, CART_ID, PDT_ID, OPT_ID, CLIST_PDT_COUNT
 , CLIST_ADDDATE, CLIST_SELECT)
-VALUES(1, 1, 168, 7, 1, SYSDATE, 'Y');
+VALUES(1, 1, 168, 7, 2, SYSDATE, 'Y');
 INSERT INTO O_CARTLIST (CLIST_ID, CART_ID, PDT_ID, OPT_ID, CLIST_PDT_COUNT
 , CLIST_ADDDATE, CLIST_SELECT)
 VALUES(2, 1, 1, NULL, 1, SYSDATE, 'Y');
@@ -216,26 +216,46 @@ IS
     vpdt_finalamount NUMBER;
     vopt_name O_PDTOPTION.OPT_NAME%TYPE;
     vopt_amount NUMBER;
+    
     vtotal_amount NUMBER := 0;
     vtotal_discount NUMBER := 0;
     vtotal_price NUMBER := 0;
     vdfee NUMBER := 3000;
+    
+    vpoint NUMBER;
 BEGIN
+    -- 배송 정보
     SELECT ADDR_NAME, ADDR_TEL, ADDR_ZIPCODE, ADDR_ADDRESS 
     INTO vname, vtel, vzipcode, vaddress 
     FROM O_ADDRESS WHERE user_id = puser_id;
     DBMS_OUTPUT.PUT_LINE(vname || ' / ' || vtel);
     DBMS_OUTPUT.PUT_LINE('[' || vzipcode || '] ' || vaddress);
     DBMS_OUTPUT.PUT_LINE('-----------------------------');
+    -- 카트 주문 상품 정보
     FOR drow IN ( SELECT * FROM O_CARTLIST where cart_id = pcart_id )
     LOOP
     IF drow.clist_select = 'Y' THEN 
         SELECT PDT_NAME, PDT_AMOUNT, PDT_DISCOUNT_RATE
         INTO vpdt_name, vpdt_amount, vpdt_dcamount
         FROM O_PRODUCT WHERE pdt_id = drow.pdt_id;
+        IF drow.opt_id IS NULL THEN
+                vopt_name := NULL;
+                vopt_amount := 0;
+            ELSE
+                SELECT OPT_NAME, OPT_AMOUNT
+                INTO vopt_name, vopt_amount
+                FROM O_PDTOPTION WHERE opt_id = drow.opt_id;
+            END IF;
         vpdt_dcamount := vpdt_amount * vpdt_dcamount / 100;
         vpdt_finalamount := vpdt_amount - vpdt_dcamount;
-        DBMS_OUTPUT.PUT_LINE(vpdt_name);
+        
+        vpdt_dcamount := vpdt_dcamount * drow.CLIST_PDT_COUNT;
+        vpdt_finalamount := (vpdt_finalamount + vopt_amount) * drow.CLIST_PDT_COUNT;
+        vpdt_amount := (vpdt_amount + vopt_amount) * drow.CLIST_PDT_COUNT;
+        DBMS_OUTPUT.PUT_LINE('*'||vpdt_name||'*');
+        IF drow.opt_id IS NOT NULL THEN
+            DBMS_OUTPUT.PUT_LINE('[옵션:' || vopt_name||'(+'||TO_CHAR(vopt_amount, 'FM999,999,999')||')]');
+        END IF;
         DBMS_OUTPUT.PUT_LINE('수량: ' || drow.CLIST_PDT_COUNT || '개');
         DBMS_OUTPUT.PUT_LINE('할인 금액 : -' || TO_CHAR(vpdt_dcamount, 'FM999,999,999'));
         DBMS_OUTPUT.PUT_LINE(TO_CHAR(vpdt_finalamount, 'FM999,999,999')
@@ -245,8 +265,7 @@ BEGIN
         vtotal_price := vtotal_price + vpdt_finalamount;
     END IF;
     END LOOP;
-    
-    --쿠폰 사용
+    -- 쿠폰
     DBMS_OUTPUT.PUT_LINE('---------사용가능 쿠폰------------');
     for drow IN ( 
     WITH isu AS (SELECT cpn_id FROM O_ISSUEDCOUPON 
@@ -256,8 +275,16 @@ BEGIN
     )LOOP
         DBMS_OUTPUT.PUT_LINE(drow.cpn_info);
     END LOOP;
-    --적립금 사용
-    
+    -- 적립금
+    SELECT USER_POINT INTO vpoint FROM O_USER WHERE user_id = puser_id;
+    DBMS_OUTPUT.PUT_LINE('---------일반/부가결제------------');
+    DBMS_OUTPUT.PUT_LINE('적립금(' || TO_CHAR(vpoint, 'FM999,999') || '원 사용가능)');
+    IF vpoint >= 3000 THEN
+        DBMS_OUTPUT.PUT_LINE('적립금 사용 가능');
+    ELSE
+        DBMS_OUTPUT.PUT_LINE('적립금은 3,000원 이상일 때 사용 가능');
+    END IF;
+    -- 최종 결제 정보
     IF vtotal_price >= 50000 THEN
     vdfee := 0;
     END IF;
@@ -267,7 +294,9 @@ BEGIN
     DBMS_OUTPUT.PUT_LINE('배송비:        +'||TO_CHAR(vdfee, 'FM999,999') ||'원');
     DBMS_OUTPUT.PUT_LINE('할인 금액:     -'||TO_CHAR(vtotal_discount, 'FM999,999,999') ||'원');
     DBMS_OUTPUT.PUT_LINE('최종 결제 금액: '||TO_CHAR(vtotal_price, 'FM999,999,999') ||'원');
---EXCEPTION
+EXCEPTION
+    WHEN OTHERS THEN
+    ROLLBACK;
 END;
 
 ALTER TABLE O_CARTLIST
@@ -306,6 +335,7 @@ IS
     vpdt_dcamount NUMBER;
     vopt_name O_PDTOPTION.OPT_NAME%TYPE;
     vopt_amount NUMBER;
+    vtotal_amount NUMBER := 0;
 BEGIN
     vord_id := TO_CHAR(SYSDATE, 'YYYYMMDD') || '-' || TO_CHAR(seq_OrderId.NEXTVAL, 'FM000000');
     vfinal_amount := pord_total_amount - pord_cpn_discount - pord_pdt_discount - pord_usepoint;
@@ -313,19 +343,17 @@ BEGIN
     ELSE
         vdfee := 3000;
     END IF;
-    
+    -- 주문 테이블 INSERT
     INSERT INTO O_ORDER (ORD_ID, USER_ID, CART_ID, ICPN_ID, ORD_NAME, ORD_ADDRESS, ORD_TEL
     , ORD_EMAIL, ORD_PASSWORD, ORD_ORDERDATE, ORD_TOTAL_AMOUNT, ORD_CPN_DISCOUNT
     , ORD_PDT_DISCOUNT, ORD_USEPOINT, ORD_PAY_OPTION, ORD_DELIVERY_FEE)
     VALUES ( vord_id, puser_id, pcart_id, picpn_id, pord_name, pord_address, pord_tel
     , pord_email, pord_password, pord_orderdate, pord_total_amount, pord_cpn_discount
     , pord_pdt_discount, pord_usepoint, pord_pay_option, vdfee);
-    
+    -- 주문상세 테이블 INSERT
     FOR drow IN ( SELECT * FROM O_CARTLIST where cart_id = pcart_id )
     LOOP
-        IF drow.clist_select = 'N' THEN 
-            DBMS_OUTPUT.PUT_LINE( 'NOT SELECTED' );
-        ELSE
+        IF drow.clist_select = 'Y' THEN 
             SELECT PDT_NAME, PDT_AMOUNT, PDT_DISCOUNT_RATE
             INTO vpdt_name, vpdt_amount, vpdt_dcamount
             FROM O_PRODUCT WHERE pdt_id = drow.pdt_id;
@@ -339,7 +367,9 @@ BEGIN
                 INTO vopt_name, vopt_amount
                 FROM O_PDTOPTION WHERE opt_id = drow.opt_id;
             END IF;
-            
+            vpdt_amount := vpdt_amount * drow.clist_pdt_count;
+            vpdt_dcamount := vpdt_dcamount * drow.clist_pdt_count;
+            vopt_amount:= vopt_amount * drow.clist_pdt_count;
             INSERT INTO O_ORDDETAIL (OPDT_ID, ORD_ID, CLIST_ID, OPDT_NAME, OPDT_AMOUNT
             , OPDT_DCAMOUNT, OPDT_OPNAME, OPDT_OPAMOUNT, OPDT_COUNT, OPDT_STATE, OPDT_REFUND
             , OPDT_DELCOMPANY, OPDT_DELNUMBER, OPDT_CONFIRM) 
@@ -364,24 +394,4 @@ SELECT * FROM O_ADDRESS;
 SELECT * FROM O_ORDER;
 SELECT * FROM O_ORDDETAIL;
 
-EXEC up_InsOrder(1005, 1, 1,  '주윤발', '서울 강남구 개포로 264 개포 래미안 포레스트 101동 908호', '010-3497-3698', 'ssit0005@naver.com', NULL, SYSDATE, 200000, 3200, 32000, 100, '카카오 페이');
-
--- 쿠폰
-
-IS
-vcpn_id NUMBER;
-    vcpn_dctype O_COUPON.CPN_DISCOUNT_TYPE%TYPE;
-    vcpn_dcrate O_COUPON.CPN_DISCOUNT_RATE%TYPE;
-    vcpn_maxamount O_COUPON.CPN_MAX_AMOUNT%TYPE;
-    vcpn_contype O_COUPON.CPN_CON_TYPE%TYPE;
-    vcpn_convalue O_COUPON.CPN_CON_VALUE%TYPE;
-    vcpn_apply O_COUPON.CPN_APPLY%TYPE;
-BEGIN
-SELECT cpn_id INTO vcpn_id
-        FROM O_ISSUEDCOUPON WHERE icpn_id = picpn_id;
-        
-        SELECT cpn_discount_type, cpn_discount_rate, cpn_max_amount
-        , cpn_con_type, cpn_con_value, cpn_apply
-        INTO vcpn_dctype, vcpn_dcrate, vcpn_maxamount
-        , vcpn_contype, vcpn_convalue, vcpn_apply
-        FROM O_COUPON WHERE cpn_id = vcpn_id;
+EXEC up_InsOrder(1005, 1, 1,  '주윤발', '서울 강남구 개포로 264 개포 래미안 포레스트 101동 908호', '010-3497-3698', 'ssit0005@naver.com', NULL, SYSDATE, 63040, 0, 5760, 0, '카카오 페이');
