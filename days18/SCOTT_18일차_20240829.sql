@@ -160,7 +160,6 @@ BEGIN
     PADDR_MAIN => 'O'
   );
 END;
-
 BEGIN
   Inso_address(
     PUSER_ID => 1003,
@@ -177,8 +176,28 @@ END;
 select * from o_address;
 
 delete from o_address;
+<<<<<<< HEAD
 -----------------------------------------------------
 -----------------------------------------------------
+=======
+
+INSERT INTO O_CART VALUES(1, 1005);
+INSERT INTO O_CARTLIST (CLIST_ID, CART_ID, PDT_ID, OPT_ID, CLIST_PDT_COUNT
+, CLIST_ADDDATE, CLIST_SELECT)
+VALUES(1, 1, 168, 7, 2, SYSDATE, 'Y');
+INSERT INTO O_CARTLIST (CLIST_ID, CART_ID, PDT_ID, OPT_ID, CLIST_PDT_COUNT
+, CLIST_ADDDATE, CLIST_SELECT)
+VALUES(2, 1, 1, NULL, 1, SYSDATE, 'Y');
+INSERT INTO O_CARTLIST (CLIST_ID, CART_ID, PDT_ID, OPT_ID, CLIST_PDT_COUNT
+, CLIST_ADDDATE, CLIST_SELECT)
+VALUES(3, 1, 2, NULL, 1, SYSDATE, 'N');
+-- 회원 주문
+CREATE SEQUENCE seq_OrderId;
+
+BEGIN
+    DBMS_OUTPUT.PUT_LINE(TO_CHAR(SYSDATE, 'YYYYMMDD') || '-' || TO_CHAR(seq_OrderId.NEXTVAL, 'FM000000'));
+END;
+
 CREATE OR REPLACE PROCEDURE up_SelOrder
 (
     puser_id O_ADDRESS.USER_ID%TYPE
@@ -199,10 +218,15 @@ IS
     vpdt_finalamount NUMBER;
     vopt_name O_PDTOPTION.OPT_NAME%TYPE;
     vopt_amount NUMBER;
+    
     vtotal_amount NUMBER := 0;
     vtotal_discount NUMBER := 0;
     vtotal_price NUMBER := 0;
     vdfee NUMBER := 3000;
+<<<<<<< HEAD
+=======
+    
+>>>>>>> 6f104a9e49c0f2b5dce522fdc05e46d8129585aa
     vpoint NUMBER;
 BEGIN
     -- 배송 정보
@@ -219,10 +243,13 @@ BEGIN
         SELECT PDT_NAME, PDT_AMOUNT, PDT_DISCOUNT_RATE, PDT_COUNT
         INTO vpdt_name, vpdt_amount, vpdt_dcamount, vpdt_count
         FROM O_PRODUCT WHERE pdt_id = drow.pdt_id;
+<<<<<<< HEAD
         --재고 체크
         IF vpdt_count < drow.CLIST_PDT_COUNT THEN
             RAISE_APPLICATION_ERROR(-20121, '재고 부족으로 주문 진행 불가');
         END IF;
+=======
+>>>>>>> 6f104a9e49c0f2b5dce522fdc05e46d8129585aa
         IF drow.opt_id IS NULL THEN
                 vopt_name := NULL;
                 vopt_amount := 0;
@@ -241,7 +268,11 @@ BEGIN
         IF drow.opt_id IS NOT NULL THEN
             DBMS_OUTPUT.PUT_LINE('[옵션:' || vopt_name||'(+'||TO_CHAR(vopt_amount, 'FM999,999,999')||')]');
         END IF;
+<<<<<<< HEAD
         DBMS_OUTPUT.PUT_LINE('수량: ' || drow.CLIST_PDT_COUNT || '개' || '    [재고:'||vpdt_count||']');
+=======
+        DBMS_OUTPUT.PUT_LINE('수량: ' || drow.CLIST_PDT_COUNT || '개');
+>>>>>>> 6f104a9e49c0f2b5dce522fdc05e46d8129585aa
         DBMS_OUTPUT.PUT_LINE('할인 금액 : -' || TO_CHAR(vpdt_dcamount, 'FM999,999,999'));
         DBMS_OUTPUT.PUT_LINE(TO_CHAR(vpdt_finalamount, 'FM999,999,999')
         ||' / '||TO_CHAR(vpdt_amount, 'FM999,999,999'));
@@ -347,16 +378,23 @@ BEGIN
     ELSE
         vdfee := 3000;
     END IF;
+<<<<<<< HEAD
+=======
+    -- 주문 테이블 INSERT
+>>>>>>> 6f104a9e49c0f2b5dce522fdc05e46d8129585aa
     INSERT INTO O_ORDER (ORD_ID, USER_ID, CART_ID, ICPN_ID, ORD_NAME, ORD_ADDRESS, ORD_TEL
     , ORD_EMAIL, ORD_PASSWORD, ORD_ORDERDATE, ORD_TOTAL_AMOUNT, ORD_CPN_DISCOUNT
     , ORD_PDT_DISCOUNT, ORD_USEPOINT, ORD_PAY_OPTION, ORD_DELIVERY_FEE)
     VALUES ( vord_id, puser_id, pcart_id, picpn_id, pord_name, pord_address, pord_tel
     , pord_email, pord_password, pord_orderdate, pord_total_amount, pord_cpn_discount
     , pord_pdt_discount, pord_usepoint, pord_pay_option, vdfee);
+<<<<<<< HEAD
     
     -- 결제 테이블 INSERT 프로시저
     up_InsPayment(vord_id, puser_id, vfinal_amount, pord_orderdate,  pstate, ptnumber);
     
+=======
+>>>>>>> 6f104a9e49c0f2b5dce522fdc05e46d8129585aa
     -- 주문상세 테이블 INSERT
     FOR drow IN ( SELECT * FROM O_CARTLIST where cart_id = pcart_id )
     LOOP
@@ -377,7 +415,11 @@ BEGIN
             vpdt_amount := vpdt_amount * drow.clist_pdt_count;
             vpdt_dcamount := vpdt_dcamount * drow.clist_pdt_count;
             vopt_amount:= vopt_amount * drow.clist_pdt_count;
+<<<<<<< HEAD
             INSERT INTO O_ORDDETAIL (OPDT_ID, ORD_ID, OPDT_NAME, OPDT_AMOUNT
+=======
+            INSERT INTO O_ORDDETAIL (OPDT_ID, ORD_ID, CLIST_ID, OPDT_NAME, OPDT_AMOUNT
+>>>>>>> 6f104a9e49c0f2b5dce522fdc05e46d8129585aa
             , OPDT_DCAMOUNT, OPDT_OPNAME, OPDT_OPAMOUNT, OPDT_COUNT, OPDT_STATE, OPDT_REFUND
             , OPDT_DELCOMPANY, OPDT_DELNUMBER, OPDT_CONFIRM) 
             VALUES ( seq_OrderProductId.NEXTVAL, vord_id, vpdt_name
@@ -446,6 +488,7 @@ SELECT * FROM O_ORDER;
 SELECT * FROM O_ORDDETAIL;
 SELECT * FROM O_PAYMENT;
 
+<<<<<<< HEAD
 EXEC up_InsOrder(1005, 1, 1, '주윤발', '서울 강남구 개포로 264 개포 래미안 포레스트 101동 908호', '010-3497-3698', 'ssit0005@naver.com', NULL, SYSDATE, 68800, 5000, 5770, 0, '카카오페이', 'success', '240012-1120442');
 ---------------------------------------------------------------
 ---------------------------------------------------------------
@@ -495,3 +538,6 @@ BEGIN
 END;
 SELECT * FROM O_ORDER;
 EXEC selOrdDetail('20240830-000019');
+=======
+EXEC up_InsOrder(1005, 1, 1,  '주윤발', '서울 강남구 개포로 264 개포 래미안 포레스트 101동 908호', '010-3497-3698', 'ssit0005@naver.com', NULL, SYSDATE, 63040, 0, 5760, 0, '카카오 페이');
+>>>>>>> 6f104a9e49c0f2b5dce522fdc05e46d8129585aa
